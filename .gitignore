@@ -10,7 +10,7 @@ outputs/
 *.egg-info/
 .idea/
 *.pdf
+docs/
 
-real_plates/*
-!real_plates/README.md
-!real_plates/tools/
+real_plates/
+pyproject.toml
