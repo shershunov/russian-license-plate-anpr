@@ -1,0 +1,16 @@
+.venv/
+.tools/
+.work/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+*.pyc
+generated/
+outputs/
+*.egg-info/
+.idea/
+*.pdf
+
+real_plates/*
+!real_plates/README.md
+!real_plates/tools/
