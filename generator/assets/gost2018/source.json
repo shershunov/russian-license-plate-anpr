@@ -1,0 +1,370 @@
+{
+  "source": "gost_50577-2018.pdf",
+  "source_sha256": "f8c57245b8803f78caa0251cff706cd3511f3485c5a582b5efc3f88e51df7440",
+  "method": "Digitized letter and numeral outlines from appendices B and V; lettering from B.1",
+  "glyphs": {
+    "A": {
+      "file": "A.png",
+      "page": 24,
+      "source_box": [
+        889,
+        1340,
+        271,
+        349
+      ],
+      "size": [
+        271,
+        349
+      ],
+      "sha256": "4fab89d03206068ba01363039cf56714f5cadd3fe18434e6d5072c1b3b9af4b0"
+    },
+    "B": {
+      "file": "B.png",
+      "page": 24,
+      "source_box": [
+        1355,
+        1340,
+        245,
+        349
+      ],
+      "size": [
+        245,
+        349
+      ],
+      "sha256": "0e27400553653051f673618f1438cca99c106927a497a2f6e13150e6d770ed7d"
+    },
+    "E": {
+      "file": "E.png",
+      "page": 24,
+      "source_box": [
+        1807,
+        1340,
+        244,
+        349
+      ],
+      "size": [
+        244,
+        349
+      ],
+      "sha256": "f3b50f68419c16e985893e08652ac16768ff9b7290f508b4288d8d51062d72b9"
+    },
+    "K": {
+      "file": "K.png",
+      "page": 24,
+      "source_box": [
+        2260,
+        1340,
+        242,
+        349
+      ],
+      "size": [
+        242,
+        349
+      ],
+      "sha256": "91266f19efbe1b0dbec84eaebc31c4baf0896702a81d344d982c58ea5d8fa327"
+    },
+    "M": {
+      "file": "M.png",
+      "page": 24,
+      "source_box": [
+        2685,
+        1340,
+        291,
+        349
+      ],
+      "size": [
+        291,
+        349
+      ],
+      "sha256": "baff8d7b5e2d0023536e9050827d17f51443160322e63418719f5a30367a122b"
+    },
+    "H": {
+      "file": "H.png",
+      "page": 24,
+      "source_box": [
+        905,
+        2028,
+        242,
+        349
+      ],
+      "size": [
+        242,
+        349
+      ],
+      "sha256": "0a84f3fb56e3e4d942aef6097681be04e63dd79fca0dd6de1e2fb3bc7f64e3ad"
+    },
+    "O": {
+      "file": "O.png",
+      "page": 24,
+      "source_box": [
+        1333,
+        2028,
+        290,
+        349
+      ],
+      "size": [
+        290,
+        349
+      ],
+      "sha256": "1712463bb91ab256ddef75a7a7809d8e55940f3acfe9e8ed4061f2edb4caf8df"
+    },
+    "P": {
+      "file": "P.png",
+      "page": 24,
+      "source_box": [
+        1807,
+        2028,
+        244,
+        349
+      ],
+      "size": [
+        244,
+        349
+      ],
+      "sha256": "ebcb94a15c4df0881dbe41bba23b92a71358606c8fce495dcaa5095ad4e7dec6"
+    },
+    "C": {
+      "file": "C.png",
+      "page": 24,
+      "source_box": [
+        2237,
+        2028,
+        265,
+        349
+      ],
+      "size": [
+        265,
+        349
+      ],
+      "sha256": "26bba8b93a155e01be0069455964271ab5b9bfc3eb4828864ddcbfa691c1c8a3"
+    },
+    "T": {
+      "file": "T.png",
+      "page": 24,
+      "source_box": [
+        2711,
+        2028,
+        242,
+        349
+      ],
+      "size": [
+        242,
+        349
+      ],
+      "sha256": "250f09f3cd005e6482de829f7077ae113d1bfff5f722c3f136dbf783f9c2846d"
+    },
+    "Y": {
+      "file": "Y.png",
+      "page": 24,
+      "source_box": [
+        902,
+        2717,
+        245,
+        348
+      ],
+      "size": [
+        245,
+        348
+      ],
+      "sha256": "df9ac5779737c7cd247252aa0dc7735d11a652b7bc67022394df359a748a49f4"
+    },
+    "X": {
+      "file": "X.png",
+      "page": 24,
+      "source_box": [
+        1346,
+        2717,
+        260,
+        348
+      ],
+      "size": [
+        260,
+        348
+      ],
+      "sha256": "dc4607a5b04aa1e8c0b1d2f79260c20ef6fce244bd8b5c5c4252b967d81df6e3"
+    },
+    "D": {
+      "file": "D.png",
+      "page": 24,
+      "source_box": [
+        1807,
+        2717,
+        244,
+        348
+      ],
+      "size": [
+        244,
+        348
+      ],
+      "sha256": "44cd119b2956ad04f177d37cb529f3e209462aab40ccfb7d2cfe8f023939da44"
+    },
+    "0": {
+      "file": "0.png",
+      "page": 25,
+      "source_box": [
+        948,
+        1239,
+        259,
+        409
+      ],
+      "size": [
+        259,
+        409
+      ],
+      "sha256": "e3e0807f28fd4230e84149d456cd41f63d9938a38f6dec76c1132292bd0960fd"
+    },
+    "1": {
+      "file": "1.png",
+      "page": 25,
+      "source_box": [
+        1501,
+        1239,
+        212,
+        412
+      ],
+      "size": [
+        212,
+        412
+      ],
+      "sha256": "68c052f4042a3e52dbad8eaa7c5dd9ffde65e10b1b44ef80b706997e2574dd67"
+    },
+    "2": {
+      "file": "2.png",
+      "page": 25,
+      "source_box": [
+        2015,
+        1239,
+        245,
+        412
+      ],
+      "size": [
+        245,
+        412
+      ],
+      "sha256": "b49e8f8173b7e0c82fa219f14b4405917035e11b27385530cb4b2d1ea00bdd50"
+    },
+    "3": {
+      "file": "3.png",
+      "page": 25,
+      "source_box": [
+        2548,
+        1239,
+        242,
+        412
+      ],
+      "size": [
+        242,
+        412
+      ],
+      "sha256": "3cefd78969a471e1307cc3bfd06bd3283b63f24f1f5694d27f675427b3b56716"
+    },
+    "4": {
+      "file": "4.png",
+      "page": 25,
+      "source_box": [
+        3078,
+        1239,
+        244,
+        412
+      ],
+      "size": [
+        244,
+        412
+      ],
+      "sha256": "a00a103bcd005c63f0e75c7e591a9a5664c65706af4358e8c603e1025142f222"
+    },
+    "5": {
+      "file": "5.png",
+      "page": 25,
+      "source_box": [
+        948,
+        1985,
+        259,
+        412
+      ],
+      "size": [
+        259,
+        412
+      ],
+      "sha256": "36b6d442c1feba6c4c939273ce2f808c7038d6b2d54f8411c433932d23d83701"
+    },
+    "6": {
+      "file": "6.png",
+      "page": 25,
+      "source_box": [
+        1478,
+        1985,
+        259,
+        412
+      ],
+      "size": [
+        259,
+        412
+      ],
+      "sha256": "701b03f81ac1f6426c561d6edc760d71405cdbd2eb37fd6fc1fa5e16207bdef0"
+    },
+    "7": {
+      "file": "7.png",
+      "page": 25,
+      "source_box": [
+        2015,
+        1985,
+        245,
+        412
+      ],
+      "size": [
+        245,
+        412
+      ],
+      "sha256": "3a3c09f571c0dee11e69a036562a42b8afb24ea3bf6d5098265ced100ad19396"
+    },
+    "8": {
+      "file": "8.png",
+      "page": 25,
+      "source_box": [
+        2541,
+        1985,
+        256,
+        412
+      ],
+      "size": [
+        256,
+        412
+      ],
+      "sha256": "63409396819dc7ce0e9ac867cced8d52b79117e80da1673e0b3e97e2f5ce2991"
+    },
+    "9": {
+      "file": "9.png",
+      "page": 25,
+      "source_box": [
+        3071,
+        1985,
+        257,
+        410
+      ],
+      "size": [
+        257,
+        410
+      ],
+      "sha256": "4ab530cfef73161a4685fe110c8ecd6448062b5fb1b36eb10a9bc2a4f724b3d2"
+    },
+    "RUS": {
+      "file": "RUS.png",
+      "page": 24,
+      "size": [
+        328,
+        120
+      ],
+      "sha256": "cfd026535302595ad5d7665c4eb4c40558c9a8e818822c3ac718deecb196ac08"
+    },
+    "TRANSIT": {
+      "file": "TRANSIT.png",
+      "page": 24,
+      "size": [
+        762,
+        125
+      ],
+      "sha256": "ce4d36e145b61f5278c78ab8b7c92e576c16c7c4983ba250ea872069020758bf"
+    }
+  }
+}
