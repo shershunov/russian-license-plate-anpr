@@ -12,5 +12,6 @@ outputs/
 *.pdf
 docs/
 
-real_plates/
+real_plates*/
 pyproject.toml
+_bench_child.py
