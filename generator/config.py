@@ -78,11 +78,11 @@ class RenderConfig:
 class Config:
     seed: int = 20260910
     count: int = 5000
-    workers: int = min(8, os.cpu_count() or 1)
+    workers: int = max(1, (os.cpu_count() or 4) - 2)
     profile: str = "gost"
     types: tuple[str, ...] = ("all",)
     regions: tuple[str, ...] = ("catalog",)
-    target_share: float = 0.6
+    target_share: float | None = None
     coverage: str = "balanced"
     format: str = "jpg"
     save_masks: bool = False
@@ -112,7 +112,7 @@ class Config:
         if len(set(self.types)) != len(self.types):
             raise ValueError("Duplicate plate types")
         resolve_regions(self.regions, self.profile)
-        if not 0.0 <= self.target_share <= 1.0:
+        if self.target_share is not None and not 0.0 <= self.target_share <= 1.0:
             raise ValueError("target_share must lie in [0, 1]")
         if not set(self.frame.lighting) <= set(LIGHTING) or not self.frame.lighting:
             raise ValueError("Unknown lighting preset")

@@ -36,17 +36,11 @@ def type_schedule(config: Config) -> tuple[tuple[str, ...], tuple[str, ...]]:
 
 def pick_subtype(config: Config, index: int, rng: np.random.Generator) -> str:
     targets, others = type_schedule(config)
-    if not targets:
-        pool = others
-    elif not others:
-        pool = targets
+    if config.target_share is None or not targets or not others:
+        pool = selected_types(config)
     else:
-        pool = targets if (index * 0.0 + rng.random()) < config.target_share else others
-    if config.coverage == "random":
-        return str(rng.choice(pool))
-    return pool[(index // 1) % len(pool)] if config.coverage == "exhaustive" else \
-        pool[(index // max(1, len(pool) // len(pool))) % len(pool)] if False else \
-            pool[index % len(pool)]
+        pool = targets if rng.random() < config.target_share else others
+    return str(rng.choice(pool)) if config.coverage == "random" else pool[index % len(pool)]
 
 
 def compatible_regions(subtype: str, regions: tuple[str, ...], profile: str) -> list[str]:
