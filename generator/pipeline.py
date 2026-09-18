@@ -3,9 +3,9 @@ from __future__ import annotations
 import os
 import tempfile
 import time
-from collections import Counter
+from collections import Counter, deque
 from concurrent.futures import ProcessPoolExecutor, as_completed
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 import cv2
@@ -29,6 +29,7 @@ from generator.renderers.cpu import render_frame
 from generator.scene import FramePlan, make_plan, random_stream
 
 OVERSHOOT_LIMIT = 2.5
+PIPELINE_DEPTH = 2
 READABLE_MIN_HEIGHT = 6.5
 READABLE_MIN_AREA = 26.0
 READABLE_MIN_CONTRAST = 16.0
@@ -83,10 +84,24 @@ def glyph_contrasts(image: np.ndarray, characters: np.ndarray, plate_px: float) 
     return contrast
 
 
-def annotate(plan: FramePlan, layout: Layout, image: np.ndarray, characters: np.ndarray,
+@dataclass(frozen=True, slots=True)
+class GlyphContext:
+    scale: float
+    height_px: int
+    width_px: int
+    boxes: tuple[tuple[str, int, tuple[float, float, float, float]], ...]
+
+    @classmethod
+    def of(cls, layout: Layout) -> GlyphContext:
+        height_px, width_px = layout.ink.shape
+        return cls(layout.pixels_per_mm, height_px, width_px,
+                   tuple((glyph.char, glyph.index, glyph.box) for glyph in layout.glyphs))
+
+
+def annotate(plan: FramePlan, context: GlyphContext, image: np.ndarray, characters: np.ndarray,
              optics: Optics) -> tuple[np.ndarray, list[dict], str, np.ndarray, list]:
-    scale = layout.pixels_per_mm
-    height_px, width_px = layout.ink.shape
+    scale = context.scale
+    height_px, width_px = context.height_px, context.width_px
     matrix = homography((width_px, height_px), np.asarray(plan.quad, np.float32))
     corners = np.array([[0, 0], [width_px - 1, 0], [width_px - 1, height_px - 1],
                         [0, height_px - 1]], np.float32)
@@ -97,23 +112,23 @@ def annotate(plan: FramePlan, layout: Layout, image: np.ndarray, characters: np.
     glyphs: list[dict] = []
     observed = []
     contrasts = glyph_contrasts(image, characters, plan.plate_px)
-    for glyph in layout.glyphs:
-        x, y, w, h = glyph.box
+    for char, position, box_mm in context.boxes:
+        x, y, w, h = box_mm
         box = np.array([[x, y], [x + w, y], [x + w, y + h], [x, y + h]], np.float32) * scale
         projected = _project(box, matrix, optics, offset)
-        visible = int((characters == glyph.index + 1).sum())
+        visible = int((characters == position + 1).sum())
         side = float(np.linalg.norm(projected[3] - projected[0]))
         area = float(cv2.contourArea(projected.astype(np.float32)))
-        contrast = float(contrasts[glyph.index + 1]) if glyph.index + 1 < len(contrasts) else 0.0
+        contrast = float(contrasts[position + 1]) if position + 1 < len(contrasts) else 0.0
         readable = (side >= READABLE_MIN_HEIGHT and area >= READABLE_MIN_AREA
                     and visible >= 6 and contrast >= READABLE_MIN_CONTRAST)
         glyphs.append({
-            "char": glyph.char, "index": glyph.index,
+            "char": char, "index": position,
             "quad": projected.round(1).tolist(),
             "pixels": visible, "height_px": round(side, 2),
             "contrast": round(contrast, 1), "readable": readable,
         })
-        observed.append(glyph.char if readable else "#")
+        observed.append(char if readable else "#")
     return quad, glyphs, "".join(observed), contour, outline_plate
 
 
@@ -125,21 +140,35 @@ def surface_config(config: Config, plan: FramePlan):
     return replace(config.material, pixels_per_mm=round(scale, 3))
 
 
-def render_one(config: Config, index: int, root: Path,
-               frame_path: str | None = None) -> dict | None:
+def render_one(config: Config, index: int, root: Path) -> dict | None:
     plan = make_plan(config, index)
     material = surface_config(config, plan)
     layout = build_layout(plan.identity, material)
     surface_rng = random_stream(config.seed, index, 300)
     surface = make_surface(layout, material, surface_rng, plan.difficulty, plan.weather)
-    if frame_path is None:
-        image, characters, info = render_frame(plan, layout, surface, config)
-    else:
-        image, characters, info = load_cycles_frame(plan, layout, Path(frame_path))
+    image, characters, info = render_frame(plan, layout, surface, config)
     camera_rng = random_stream(config.seed, index, 400)
     image, characters, optics, camera_parameters = capture(image, characters, plan,
                                                            config.camera, camera_rng)
-    quad, glyphs, observed, contour, outline_plate = annotate(plan, layout, image,
+    return _assemble(config, index, root, plan, GlyphContext.of(layout), surface.parameters,
+                     image, characters, optics, camera_parameters, info.get("backend", "cpu"))
+
+
+def finish_cycles(config: Config, index: int, root: Path, frame_path: str,
+                  prepared: dict) -> dict | None:
+    plan = make_plan(config, index)
+    image, characters = load_cycles_frame(plan, Path(prepared["stencil"]), Path(frame_path))
+    camera_rng = random_stream(config.seed, index, 400)
+    image, characters, optics, camera_parameters = capture(image, characters, plan,
+                                                           config.camera, camera_rng)
+    return _assemble(config, index, root, plan, prepared["context"], prepared["parameters"],
+                     image, characters, optics, camera_parameters, "cycles")
+
+
+def _assemble(config: Config, index: int, root: Path, plan: FramePlan, context: GlyphContext,
+              surface_parameters: dict, image: np.ndarray, characters: np.ndarray,
+              optics: Optics, camera_parameters: dict, backend: str) -> dict | None:
+    quad, glyphs, observed, contour, outline_plate = annotate(plan, context, image,
                                                               characters, optics)
     height, width = image.shape[:2]
     coverage = visible_fraction(quad, width, height)
@@ -178,7 +207,7 @@ def render_one(config: Config, index: int, root: Path,
         bbox=bbox,
         quad=quad.round(1).tolist(),
         is_vehicle=int(plan.is_vehicle),
-        conditions=conditions_for(plan, surface.parameters, camera_parameters),
+        conditions=conditions_for(plan, surface_parameters, camera_parameters),
         payload={
             "image": relative, "index": index, "seed": config.seed,
             "subtype": plan.identity.subtype, "plate_type": plate_type,
@@ -194,9 +223,9 @@ def render_one(config: Config, index: int, root: Path,
             "difficulty": plan.difficulty, "is_vehicle": bool(plan.is_vehicle),
             "holder": bool(plan.holder),
             "material": {key: (round(value, 4) if isinstance(value, float) else value)
-                         for key, value in surface.parameters.items()},
+                         for key, value in surface_parameters.items()},
             "camera_parameters": camera_parameters,
-            "renderer": info.get("backend", "cpu"),
+            "renderer": backend,
             "coverage": round(coverage, 4), "readable_share": round(readable_share, 3),
         },
     )
@@ -205,21 +234,24 @@ def render_one(config: Config, index: int, root: Path,
             "yolo": record.yolo_row(width, height), "payload": record.payload}
 
 
-def load_cycles_frame(plan: FramePlan, layout: Layout, path: Path
-                      ) -> tuple[np.ndarray, np.ndarray, dict]:
+def load_cycles_frame(plan: FramePlan, stencil_path: Path,
+                      path: Path) -> tuple[np.ndarray, np.ndarray]:
     frame = np.load(path).astype(np.float32)
     path.unlink(missing_ok=True)
     render_width, render_height = plan.render_size
     if frame.shape[0] != render_height or frame.shape[1] != render_width:
         frame = cv2.resize(frame, (render_width, render_height), interpolation=cv2.INTER_AREA)
-    height_px, width_px = layout.char_ids.shape
+    with np.load(stencil_path) as stencil:
+        char_ids, plate_alpha = stencil["char_ids"], stencil["alpha"]
+    stencil_path.unlink(missing_ok=True)
+    height_px, width_px = char_ids.shape
     matrix = homography((width_px, height_px), np.asarray(plan.quad, np.float32))
-    characters = cv2.warpPerspective(layout.char_ids, matrix, (render_width, render_height),
+    characters = cv2.warpPerspective(char_ids, matrix, (render_width, render_height),
                                      flags=cv2.INTER_NEAREST)
-    alpha = cv2.warpPerspective(layout.alpha, matrix, (render_width, render_height),
+    alpha = cv2.warpPerspective(plate_alpha, matrix, (render_width, render_height),
                                 flags=cv2.INTER_LINEAR)
     characters = np.where(alpha > 0.5, characters, 0).astype(np.uint16)
-    return frame, characters, {"backend": "cycles"}
+    return frame, characters
 
 
 def _worker(args: tuple) -> dict | None:
@@ -227,8 +259,15 @@ def _worker(args: tuple) -> dict | None:
 
     cv2.setNumThreads(1)
     values, index, root = args[0], args[1], args[2]
-    frame_path = args[3] if len(args) > 3 else None
-    return render_one(from_dict(values), index, Path(root), frame_path)
+    return render_one(from_dict(values), index, Path(root))
+
+
+def _finish_worker(args: tuple) -> dict | None:
+    from generator.config import from_dict
+
+    cv2.setNumThreads(1)
+    values, index, root, frame_path, prepared = args
+    return finish_cycles(from_dict(values), index, Path(root), frame_path, prepared)
 
 
 def drop_extra(root: Path, results: list[dict], image_format: str) -> None:
@@ -279,7 +318,7 @@ def summarise(results: list[dict], skipped: int, elapsed: float, config: Config)
 
 
 def generate_cycles(config: Config, root: Path, progress: bool = True) -> dict:
-    from generator.cycles_pipeline import cleanup, prepare_batch, render_prepared
+    from generator.cycles_pipeline import cleanup, prepare, render_prepared
 
     root.mkdir(parents=True, exist_ok=True)
     writer = DatasetWriter(root, config.format, config.save_masks)
@@ -289,48 +328,81 @@ def generate_cycles(config: Config, root: Path, progress: bool = True) -> dict:
     results: list[dict] = []
     rejects: list[dict] = []
     skipped = 0
+    processed = 0
+    inflight = 0
     stage_times = {"prepare": 0.0, "render": 0.0, "finish": 0.0}
     attempts = 0
     limit = int(config.count * OVERSHOOT_LIMIT)
-    try:
-        pool = None if config.workers == 1 else ProcessPoolExecutor(max_workers=config.workers)
-        while len(results) < config.count and attempts < limit:
-            overshoot = (min(1.6, attempts / max(len(results), 1) * 1.04)
-                         if results else 1.10)
-            size = min(config.render.batch_size,
-                       max(8, int(round((config.count - len(results)) * overshoot))))
-            chunk = list(range(attempts, min(attempts + size, limit)))
-            attempts += len(chunk)
-            if not chunk:
-                break
+    staged: deque[tuple[list[int], list]] = deque()
+    finishing: deque[list] = deque()
+    pool = ProcessPoolExecutor(max_workers=max(1, config.workers))
+
+    def harvest(blocking: bool) -> None:
+        nonlocal skipped, processed, inflight
+        while finishing:
+            futures = finishing[0]
+            if not blocking and not all(future.done() for future in futures):
+                return
             mark = time.perf_counter()
-            entries = prepare_batch(config, chunk, workdir, pool)
-            stage_times["prepare"] += time.perf_counter() - mark
-            mark = time.perf_counter()
-            outputs = render_prepared(entries, config, workdir)
-            stage_times["render"] += time.perf_counter() - mark
-            mark = time.perf_counter()
-            payload = [(values, index, str(root), outputs[index]) for index in chunk]
-            if pool is None:
-                finished = [_worker(item) for item in payload]
-            else:
-                finished = list(pool.map(_worker, payload, chunksize=4))
-            stage_times["finish"] += time.perf_counter() - mark
-            for outcome in finished:
+            for future in futures:
+                outcome = future.result()
+                processed += 1
+                inflight -= 1
                 if outcome is None or "reject" in outcome:
                     skipped += 1
                     if outcome is not None:
                         rejects.append(outcome)
                 else:
                     results.append(outcome)
-            for index in chunk:
-                (workdir / f"chars_{index:06d}.npz").unlink(missing_ok=True)
+            stage_times["finish"] += time.perf_counter() - mark
+            finishing.popleft()
+
+    def submit_stage() -> bool:
+        nonlocal attempts, inflight
+        rate = len(results) / processed if processed else 1.0
+        remaining = config.count - len(results) - inflight * rate
+        if remaining <= 0 or attempts >= limit:
+            return False
+        overshoot = min(1.6, 1.04 / rate) if rate > 0 else 1.6
+        size = min(config.render.batch_size, max(8, int(round(remaining * overshoot))))
+        chunk = list(range(attempts, min(attempts + size, limit)))
+        if not chunk:
+            return False
+        attempts += len(chunk)
+        inflight += len(chunk)
+        staged.append((chunk, [pool.submit(prepare, values, index, str(workdir))
+                               for index in chunk]))
+        return True
+
+    try:
+        while True:
+            while len(staged) < PIPELINE_DEPTH and submit_stage():
+                pass
+            if not staged:
+                if not finishing:
+                    break
+                harvest(blocking=True)
+                continue
+            chunk, futures = staged.popleft()
+            mark = time.perf_counter()
+            prepared = [future.result() for future in futures]
+            stage_times["prepare"] += time.perf_counter() - mark
+            harvest(blocking=False)
+            mark = time.perf_counter()
+            outputs = render_prepared([item["job"] for item in prepared], config, workdir)
+            stage_times["render"] += time.perf_counter() - mark
+            finishing.append([
+                pool.submit(_finish_worker,
+                            (values, index, str(root), outputs[index], item["finish"]))
+                for index, item in zip(chunk, prepared, strict=True)
+            ])
+            harvest(blocking=False)
             if progress:
                 print(f"  {len(results)}/{config.count} kept "
                       f"({attempts} rendered)", flush=True)
     finally:
-        if pool is not None:
-            pool.shutdown()
+        harvest(blocking=True)
+        pool.shutdown()
         cleanup(workdir)
     results = sorted(results, key=lambda item: item["payload"]["index"])[:config.count]
     drop_extra(root, results, config.format)
@@ -376,7 +448,7 @@ def generate(config: Config, root: Path, progress: bool = True) -> dict:
                            max(8, int(round((config.count - len(results)) * overshoot))))
                 chunk = list(range(attempts, min(attempts + size, limit)))
                 attempts += len(chunk)
-                futures = [pool.submit(_worker, (values, index, str(root), None))
+                futures = [pool.submit(_worker, (values, index, str(root)))
                            for index in chunk]
                 for future in as_completed(futures):
                     outcome = future.result()

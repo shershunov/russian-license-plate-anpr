@@ -1,17 +1,15 @@
 from __future__ import annotations
 
 import shutil
-from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
 import cv2
 import numpy as np
 
 from generator.config import Config, from_dict
-from generator.geometry import homography
 from generator.layout import build_layout
 from generator.materials import make_surface
-from generator.pipeline import surface_config
+from generator.pipeline import GlyphContext, surface_config
 from generator.renderers.cycles import Job
 from generator.scene import make_plan, random_stream
 
@@ -27,39 +25,22 @@ def prepare(values: dict, index: int, workdir: str) -> dict:
                            plan.difficulty, plan.weather)
     folder = Path(workdir)
     folder.mkdir(parents=True, exist_ok=True)
-    np.savez(folder / f"chars_{index:06d}.npz",
-             char_ids=layout.char_ids.astype(np.uint16))
+    stencil = folder / f"chars_{index:06d}.npz"
+    np.savez(stencil, char_ids=layout.char_ids.astype(np.uint16), alpha=layout.alpha)
     from generator.renderers.cycles import _job_entry
 
-    return _job_entry(Job(plan, layout, surface), folder)
-
-
-def warp_characters(index: int, workdir: Path, plan, shape: tuple[int, int]) -> np.ndarray:
-    payload = np.load(workdir / f"chars_{index:06d}.npz")
-    char_ids = payload["char_ids"]
-    height, width = char_ids.shape
-    matrix = homography((width, height), np.asarray(plan.quad, np.float32))
-    warped = cv2.warpPerspective(char_ids, matrix, (shape[1], shape[0]),
-                                 flags=cv2.INTER_NEAREST)
-    (workdir / f"chars_{index:06d}.npz").unlink(missing_ok=True)
-    return warped.astype(np.uint16)
+    return {
+        "job": _job_entry(Job(plan, layout, surface), folder),
+        "finish": {
+            "stencil": str(stencil),
+            "context": GlyphContext.of(layout),
+            "parameters": surface.parameters,
+        },
+    }
 
 
 def cleanup(workdir: Path) -> None:
     shutil.rmtree(workdir, ignore_errors=True)
-
-
-def batches(count: int, size: int) -> list[list[int]]:
-    return [list(range(start, min(start + size, count))) for start in range(0, count, size)]
-
-
-def prepare_batch(config: Config, indices: list[int], workdir: Path,
-                  pool: ProcessPoolExecutor | None = None) -> list[dict]:
-    values = config.to_dict()
-    if pool is None:
-        return [prepare(values, index, str(workdir)) for index in indices]
-    return list(pool.map(prepare, [values] * len(indices), indices,
-                         [str(workdir)] * len(indices), chunksize=4))
 
 
 def render_prepared(entries: list[dict], config: Config, workdir: Path) -> dict[int, str]:
@@ -86,7 +67,7 @@ def _render(entries: list[dict], config: Config, workdir: Path) -> dict[int, str
 
     from generator.renderers.cycles import SCRIPT, find_blender
 
-    slots = max(1, min(config.render.processes, len(entries)))
+    slots = max(1, min(max(config.render.processes, config.render.gpus), len(entries)))
     settings = {
         "samples": config.render.samples,
         "denoise": config.render.denoise,
@@ -111,14 +92,15 @@ def _render(entries: list[dict], config: Config, workdir: Path) -> dict[int, str
                         manifest, log))
         handle.close()
     verbose = bool(os.environ.get("PLATE_PROFILE"))
+    transcript: list[str] = []
     for process, manifest, log in running:
         code = process.wait(timeout=config.render.timeout_seconds)
         manifest.unlink(missing_ok=True)
         output = log.read_text("utf-8", "replace")
         log.unlink(missing_ok=True)
+        transcript.extend(output.strip().splitlines()[-30:])
         if code != 0:
-            tail = "\n".join(output.strip().splitlines()[-30:])
-            raise RuntimeError(f"Blender failed ({code}):\n{tail}")
+            raise RuntimeError(f"Blender failed ({code}):\n" + "\n".join(transcript))
         if verbose:
             for line in output.splitlines():
                 if line.startswith(("PLATE_PROFILE", "DEBUG_")):
@@ -127,7 +109,8 @@ def _render(entries: list[dict], config: Config, workdir: Path) -> dict[int, str
     for entry in entries:
         path = Path(entry["output"])
         if not path.is_file():
-            raise RuntimeError(f"Blender produced no frame for index {entry['index']}")
+            raise RuntimeError(f"Blender produced no frame for index {entry['index']}:\n"
+                               + "\n".join(transcript))
         outputs[entry["index"]] = str(path)
         Path(entry["surface"]).unlink(missing_ok=True)
     return outputs
