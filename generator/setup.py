@@ -88,7 +88,7 @@ def setup_blender() -> Path:
                 destination.mkdir(parents=True, exist_ok=True)
             else:
                 destination.parent.mkdir(parents=True, exist_ok=True)
-                with source.open(member) as incoming, destination.open("xb") as outgoing:
+                with source.open(member) as incoming, destination.open("wb") as outgoing:
                     shutil.copyfileobj(incoming, outgoing)
     if not executable.is_file():
         raise RuntimeError("Blender archive does not contain the expected executable")
