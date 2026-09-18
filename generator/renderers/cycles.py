@@ -37,21 +37,21 @@ class Job:
     surface: Surface
 
 
-def _surface_payload(surface: Surface) -> dict[str, np.ndarray]:
-    return {
-        "albedo": surface.albedo.astype(np.float32),
-        "height_mm": surface.height_mm.astype(np.float32),
-        "roughness": surface.roughness.astype(np.float32),
-        "metallic": surface.metallic.astype(np.float32),
-        "alpha": surface.alpha.astype(np.float32),
-        "nir": surface.nir.astype(np.float32),
-    }
+SURFACE_PLANES = ("albedo", "albedo", "albedo", "height_mm", "roughness", "metallic",
+                  "alpha", "nir")
+
+
+def _surface_payload(surface: Surface) -> np.ndarray:
+    return np.stack([
+        surface.albedo[..., 0], surface.albedo[..., 1], surface.albedo[..., 2],
+        surface.height_mm, surface.roughness, surface.metallic, surface.alpha, surface.nir,
+    ]).astype(np.float32)
 
 
 def _job_entry(job: Job, workdir: Path) -> dict:
     plan = job.plan
-    surface_path = workdir / f"surface_{plan.index:06d}.npz"
-    np.savez(surface_path, **_surface_payload(job.surface))
+    surface_path = workdir / f"surface_{plan.index:06d}.npy"
+    np.save(surface_path, _surface_payload(job.surface))
     retro_gain = 1.0 if job.surface.parameters["retroreflective"] else 0.25
     return {
         "index": plan.index,

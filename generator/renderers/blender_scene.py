@@ -30,6 +30,15 @@ LIGHT_STRENGTH = {
 }
 
 
+def surface_planes(path: str) -> dict[str, np.ndarray]:
+    planes = np.load(path)
+    return {
+        "albedo": np.ascontiguousarray(planes[0:3].transpose(1, 2, 0)),
+        "height_mm": planes[3], "roughness": planes[4], "metallic": planes[5],
+        "alpha": planes[6], "nir": planes[7],
+    }
+
+
 def rotation(angles: list[float]) -> np.ndarray:
     yaw, pitch, roll = np.radians(angles)
     ry = np.array([[np.cos(yaw), 0, np.sin(yaw)], [0, 1, 0], [-np.sin(yaw), 0, np.cos(yaw)]])
@@ -326,7 +335,7 @@ def render_job(job: dict, render: dict, output: Path) -> None:
     configure(job, render)
     mark = tick("configure", mark)
     rng = np.random.default_rng(job["seed"])
-    data = np.load(job["surface"])
+    data = surface_planes(job["surface"])
     mark = tick("load", mark)
     build_context(job, rng)
     mark = tick("context", mark)
