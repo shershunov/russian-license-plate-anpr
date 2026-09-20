@@ -1,6 +1,7 @@
 import csv
 import hashlib
 import json
+import os
 import shutil
 import tempfile
 from dataclasses import dataclass
@@ -62,16 +63,16 @@ class SampleTable:
         return sum(int(getattr(self, name).nbytes) for name in COLUMNS)
 
     def save(self, folder: Path) -> None:
-        staging: Path = folder.with_name(folder.name + '.tmp')
-        if staging.exists():
-            shutil.rmtree(staging, ignore_errors=True)
+        staging: Path = folder.with_name(f'{folder.name}.tmp.{os.getpid()}')
+        shutil.rmtree(staging, ignore_errors=True)
         staging.mkdir(parents=True)
         for name in COLUMNS:
             np.save(staging / f'{name}.npy', getattr(self, name), allow_pickle=False)
         (staging / 'version.txt').write_text(CACHE_VERSION, encoding='utf-8')
-        if folder.exists():
-            shutil.rmtree(folder, ignore_errors=True)
-        staging.replace(folder)
+        try:
+            staging.replace(folder)
+        except OSError:
+            shutil.rmtree(staging, ignore_errors=True)
 
     @classmethod
     def load(cls, folder: Path) -> 'SampleTable':
@@ -340,7 +341,7 @@ def _cache_folder(root: Path, signature: str) -> Path:
     for base in candidates:
         try:
             base.mkdir(parents=True, exist_ok=True)
-            probe: Path = base / '.writable'
+            probe: Path = base / f'.writable.{os.getpid()}'
             probe.touch()
             probe.unlink()
             return base / signature
